@@ -53,9 +53,6 @@ Unlike other n8n packages for Laravel — which are simple outbound HTTP clients
 
 ```bash
 composer require oriceon/laravel-n8n-bridge
-php artisan vendor:publish --tag="n8n-bridge-config"
-php artisan vendor:publish --tag="n8n-bridge-migrations"
-php artisan migrate
 ```
 
 ---
