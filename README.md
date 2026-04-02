@@ -66,6 +66,12 @@ php artisan vendor:publish --tag="n8n-bridge-config"
 php artisan vendor:publish --tag="n8n-bridge-migrations"
 ```
 
+Then, run the migrations
+
+```bash
+php artisan migrate
+```
+
 Set .env variables
 
 ```env
