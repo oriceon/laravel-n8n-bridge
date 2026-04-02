@@ -1,0 +1,142 @@
+{
+    "name": "My workflow",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "31fc3ed0-a190-482b-9933-fc22b84f907c",
+                "authentication": "headerAuth",
+                "responseMode": "responseNode",
+                "options": {
+                    "rawBody": false
+                }
+            },
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 2.1,
+            "position": [
+                -432,
+                -240
+            ],
+            "id": "f04c5638-c5a1-427c-ae99-c9cd9515b2e5",
+            "name": "Webhook",
+            "webhookId": "31fc3ed0-a190-482b-9933-fc22b84f907c",
+            "credentials": {
+                "httpHeaderAuth": {
+                    "id": "SXJOSzpzFQT9OLWP",
+                    "name": "Access Workflow"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "https://test.your-domain.dev/n8n/in/user-name",
+                "authentication": "genericCredentialType",
+                "genericAuthType": "httpHeaderAuth",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "X-N8N-Workflow-Id",
+                            "value": "={{ $workflow.id }}"
+                        },
+                        {
+                            "name": "X-N8N-Execution-Id",
+                            "value": "={{ $execution.id }}"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "bodyParameters": {
+                    "parameters": [
+                        {
+                            "name": "user_id",
+                            "value": "1"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.4,
+            "position": [
+                0,
+                -240
+            ],
+            "id": "71dd2bbe-bcb0-486e-84bd-4a20ca842b00",
+            "name": "HTTP Request",
+            "credentials": {
+                "httpHeaderAuth": {
+                    "id": "wg9wdab7D75JJ0qt",
+                    "name": "Inbound Key"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={\n  \"execution_id\": \"{{ $execution.id }}\",\n  \"workflow_id\": \"{{ $workflow.id }}\",\n  \"workflow_name\": \"{{ $workflow.name }}\",\n  \"message\": \"Workflow was started\"\n}",
+                "options": {}
+            },
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1.5,
+            "position": [
+                -224,
+                -128
+            ],
+            "id": "312a784e-0a4c-4124-8675-88160da47ab9",
+            "name": "Respond to Webhook"
+        }
+    ],
+    "pinData": {},
+    "connections": {
+        "Webhook": {
+            "main": [
+                [
+                    {
+                        "node": "Respond to Webhook",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Respond to Webhook": {
+            "main": [
+                [
+                    {
+                        "node": "HTTP Request",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "active": true,
+    "settings": {
+        "executionOrder": "v1",
+        "binaryMode": "separate",
+        "availableInMCP": false
+    },
+    "versionId": "bda23252-94c2-46cd-93e4-fbd9d4fe930d",
+    "meta": {
+        "templateCredsSetupCompleted": true,
+        "instanceId": "5f2a14acb7bc11ea723aeccd7e8e0c241bd2404ca955343b47a34799b461d590"
+    },
+    "id": "5r2aMKplzIsz67bI",
+    "tags": [
+        {
+            "updatedAt": "2026-03-27T09:59:57.185Z",
+            "createdAt": "2026-03-27T09:59:57.185Z",
+            "id": "iHgmIWIR7iuBSAP9",
+            "name": "b"
+        },
+        {
+            "updatedAt": "2026-03-27T09:59:56.342Z",
+            "createdAt": "2026-03-27T09:59:56.342Z",
+            "id": "zTZL8t3Lb8jmxy5N",
+            "name": "a"
+        }
+    ]
+}

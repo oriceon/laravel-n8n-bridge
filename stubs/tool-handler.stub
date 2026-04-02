@@ -1,0 +1,85 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ namespace }};
+
+use Oriceon\N8nBridge\DTOs\N8nToolRequest;
+use Oriceon\N8nBridge\DTOs\N8nToolResponse;
+use Oriceon\N8nBridge\Tools\N8nToolHandler;
+
+/**
+ * Tool: exposes data and actions to n8n at /n8n/tools/{slug}.
+ *
+ * Register this tool:
+ *   php artisan n8n:tool:create {slug} \
+ *       --handler="{{ namespace }}\{{ class }}" \
+ *       --methods=GET,POST
+ *
+ * Override only the methods you want to expose.
+ * All other methods return 405 automatically.
+ */
+final class {{ class }} extends N8nToolHandler
+{
+    /**
+     * GET /n8n/tools/{slug}
+     * Return a paginated list — supports ?filter[key]=val&search=&sort=-field&per_page=50
+     *
+     * n8n usage:
+     *   HTTP Request → GET https://yourapp.com/n8n/tools/{slug}?filter[status]=active
+     *   {{ $json.data }}           — array of items
+     *   {{ $json.meta.total }}     — total count
+     */
+    public function get(N8nToolRequest $request): N8nToolResponse
+    {
+        // Example — replace with your model:
+        //
+        // return N8nToolResponse::paginated(
+        //     YourModel::query()
+        //         ->when($request->filter('status'), fn($q, $v) => $q->where('status', $v))
+        //         ->when($request->search(), fn($q, $v) => $q->where('name', 'like', "%{$v}%"))
+        //         ->paginate($request->perPage()),
+        //     fn($model) => ['id' => $model->id, 'name' => $model->name]
+        // );
+
+        return N8nToolResponse::empty();
+    }
+
+    /**
+     * GET /n8n/tools/{slug}/{id}
+     * Return a single record by ID.
+     *
+     * n8n usage:
+     *   HTTP Request → GET https://yourapp.com/n8n/tools/{slug}/{{ $json.record_id }}
+     *   {{ $json.data.field }}
+     */
+    public function getById(N8nToolRequest $request, string|int $id): N8nToolResponse
+    {
+        // Example:
+        //
+        // $model = YourModel::find($id);
+        // return $model
+        //     ? N8nToolResponse::item($model)
+        //     : N8nToolResponse::notFound("Record [{$id}] not found.");
+
+        return $this->methodNotAllowed();
+    }
+
+    /**
+     * POST /n8n/tools/{slug}
+     * Perform an action or create a resource.
+     *
+     * n8n usage:
+     *   HTTP Request → POST https://yourapp.com/n8n/tools/{slug}
+     *   Body: { "field": "{{ $json.value }}" }
+     */
+    public function post(N8nToolRequest $request): N8nToolResponse
+    {
+        // Example:
+        //
+        // $data = $request->required('field');
+        // return N8nToolResponse::success(['result' => $data, 'created' => true]);
+
+        return $this->methodNotAllowed();
+    }
+}

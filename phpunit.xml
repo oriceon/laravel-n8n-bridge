@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="vendor/autoload.php"
+         colors="true"
+         failOnWarning="true"
+         failOnDeprecation="false"
+         cacheDirectory=".phpunit.cache"
+>
+    <testsuites>
+        <testsuite name="Unit">
+            <directory>tests/Unit</directory>
+        </testsuite>
+        <testsuite name="Feature">
+            <directory>tests/Feature</directory>
+        </testsuite>
+        <testsuite name="Architecture">
+            <directory>tests/Architecture</directory>
+        </testsuite>
+    </testsuites>
+
+    <source>
+        <include>
+            <directory suffix=".php">src</directory>
+        </include>
+        <exclude>
+            <directory>src/Database</directory>
+        </exclude>
+    </source>
+
+    <php>
+        <env name="APP_ENV" value="testing" />
+        <env name="CACHE_DRIVER" value="array" />
+        <env name="QUEUE_CONNECTION" value="sync" />
+        <env name="DB_CONNECTION" value="sqlite" />
+        <env name="DB_DATABASE" value=":memory:" />
+        <env name="N8N_BRIDGE_N8N_DEFAULT_API_BASE_URL" value="http://n8n.test:5678" />
+        <env name="N8N_BRIDGE_N8N_DEFAULT_API_KEY" value="test-api-key" />
+        <env name="N8N_BRIDGE_N8N_DEFAULT_WEBHOOK_BASE_URL" value="http://n8n.test:5678/webhook" />
+        <env name="N8N_BRIDGE_NOTIFY_ENABLED" value="false" />
+    </php>
+</phpunit>

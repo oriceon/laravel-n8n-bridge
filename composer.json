@@ -1,0 +1,71 @@
+{
+    "name": "oriceon/laravel-n8n-bridge",
+    "description": "Full-featured bidirectional Laravel 13+ bridge for n8n \u2014 DB-driven workflows, inbound/outbound tools, queue, circuit breaker, webhook auth.",
+    "keywords": [
+        "laravel",
+        "n8n",
+        "n8n bridge",
+        "bridge",
+        "webhook",
+        "workflow",
+        "automation"
+    ],
+    "homepage": "https://github.com/oriceon/laravel-n8n-bridge",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Valentin Ivașcu",
+            "email": "oriceon@gmail.com"
+        }
+    ],
+    "require": {
+        "php": "^8.5",
+        "laravel/framework": "^13.0",
+        "spatie/laravel-package-tools": "^1.93"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^11.0",
+        "pestphp/pest": "^4.4",
+        "pestphp/pest-plugin-laravel": "^4.1",
+        "phpstan/phpstan": "^2.1",
+        "laravel/pint": "^1.29",
+        "pestphp/pest-plugin-type-coverage": "^4.0",
+        "phpunit/phpunit": "^12.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "Oriceon\\N8nBridge\\": "src/",
+            "Oriceon\\N8nBridge\\Database\\Factories\\": "database/factories/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Oriceon\\N8nBridge\\Bridge\\Tests\\": "tests/",
+            "Oriceon\\N8nBridge\\Database\\Factories\\": "database/factories/"
+        }
+    },
+    "scripts": {
+        "test": "bash run-tests.sh",
+        "test-coverage": "bash run-tests.sh --coverage",
+        "test-type": "bash run-tests.sh --type-coverage",
+        "test-arch": "bash run-tests.sh tests/Architecture",
+        "analyse": "phpstan analyse"
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Oriceon\\N8nBridge\\N8nBridgeServiceProvider"
+            ],
+            "aliases": {
+                "N8nBridge": "Oriceon\\N8nBridge\\Facades\\N8nBridge"
+            }
+        }
+    },
+    "minimum-stability": "stable"
+}
