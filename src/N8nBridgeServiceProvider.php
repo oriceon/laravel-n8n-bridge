@@ -7,6 +7,7 @@ namespace Oriceon\N8nBridge;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Schema;
 use Oriceon\N8nBridge\Auth\CredentialAuthService;
 use Oriceon\N8nBridge\Auth\N8nAuthMiddleware;
 use Oriceon\N8nBridge\Auth\WebhookAuthService;
@@ -213,7 +214,16 @@ final class N8nBridgeServiceProvider extends PackageServiceProvider
 
         // Dynamic outbound event listener — fires for all app events
         if (config('n8n-bridge.outbound.listen_events', true)) {
-            Event::listen('*', [OutboundEventListener::class, 'handle']);
+            try {
+                $table = config('n8n-bridge.table_prefix', 'n8n') . '__event_subscriptions__lists';
+
+                if (Schema::hasTable($table)) {
+                    Event::listen('*', [OutboundEventListener::class, 'handle']);
+                }
+            }
+            catch (\Throwable) {
+                // DB unavailable: ide-helper, CI without DB, fresh install
+            }
         }
     }
 
