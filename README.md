@@ -53,9 +53,6 @@ Unlike other n8n packages for Laravel — which are simple outbound HTTP clients
 
 ```bash
 composer require oriceon/laravel-n8n-bridge
-php artisan vendor:publish --tag="n8n-bridge-config"
-php artisan vendor:publish --tag="n8n-bridge-migrations"
-php artisan migrate
 ```
 
 ---
@@ -67,6 +64,12 @@ If you want to publish the config or migrations, you can do so with:
 ```bash
 php artisan vendor:publish --tag="n8n-bridge-config"
 php artisan vendor:publish --tag="n8n-bridge-migrations"
+```
+
+Then, run the migrations
+
+```bash
+php artisan migrate
 ```
 
 Set .env variables
