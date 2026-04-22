@@ -44,7 +44,7 @@ final class CredentialCreateCommand extends Command
 
         $this->info('✅ Credential created!');
         $this->newLine();
-        $this->line("  ID:       {$credential->uuid}");
+        $this->line("  ID:       {$credential->id}");
         $this->line("  Name:     {$credential->name}");
         $this->line("  Instance: {$credential->n8n_instance}");
 

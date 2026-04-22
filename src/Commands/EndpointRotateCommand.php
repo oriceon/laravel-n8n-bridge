@@ -19,22 +19,32 @@ final class EndpointRotateCommand extends Command
     public function handle(): int
     {
         $endpoint = N8nEndpoint::where('slug', $this->argument('slug'))->firstOrFail();
-        $grace    = (int) $this->option('grace');
+        $grace = (int) $this->option('grace');
 
-        if ($endpoint->credential_id === null) {
-            $this->error("Endpoint [{$endpoint->slug}] has no credential. Attach one first: n8n:credential:attach");
+        $credentials = $endpoint->credentials()->get();
+
+        if ($credentials->isEmpty()) {
+            $this->error("Endpoint [{$endpoint->slug}] has no credentials attached. Attach one first: n8n:credential:attach");
 
             return self::FAILURE;
         }
 
+        if ($credentials->count() > 1) {
+            $this->error("Endpoint [{$endpoint->slug}] has multiple credentials attached. Use: php artisan n8n:credential:rotate {uuid}");
+
+            return self::FAILURE;
+        }
+
+        $credential = $credentials->first();
+
         // Put all active keys on this credential into a grace period
         N8nApiKey::query()
-            ->where('credential_id', $endpoint->credential_id)
+            ->where('credential_id', $credential->id)
             ->where('status', 'active')
             ->get()
-            ->each(fn($k) => $k->startGracePeriod($grace));
+            ->each(fn ($k) => $k->startGracePeriod($grace));
 
-        [$plaintext] = N8nApiKey::generate($endpoint->credential_id, 'artisan:rotate');
+        [$plaintext] = N8nApiKey::generate($credential->id, 'artisan:rotate');
 
         $this->info("✅ New API key generated. Old key valid for {$grace}s.");
         $this->warn("🔑 New key: {$plaintext}");

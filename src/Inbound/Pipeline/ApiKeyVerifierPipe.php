@@ -20,19 +20,10 @@ use Oriceon\N8nBridge\Models\N8nEndpoint;
  */
 final readonly class ApiKeyVerifierPipe
 {
-    /**
-     * @param CredentialAuthService $auth
-     */
     public function __construct(
         private CredentialAuthService $auth,
-    ) {
-    }
+    ) {}
 
-    /**
-     * @param array $passable
-     * @param \Closure $next
-     * @return mixed
-     */
     public function handle(array $passable, \Closure $next): mixed
     {
         /** @var Request $request */
@@ -40,10 +31,12 @@ final readonly class ApiKeyVerifierPipe
         [$request, $endpoint] = $passable;
 
         // Auth already enforced by N8nAuthMiddleware for all /n8n/* routes.
-        // Verify the authenticated credential matches this endpoint's credential (key isolation).
+        // Every endpoint must have at least one credential attached.
+        // If none are attached, deny the request — open-access endpoints are not allowed.
         $credential = $request->attributes->get('n8n_credential');
+        $credentialIds = $endpoint->credentials()->pluck('id');
 
-        if ($credential?->id !== $endpoint->credential_id) {
+        if ($credentialIds->isEmpty() || ! $credentialIds->contains($credential?->id)) {
             return response()->json(['error' => 'Key not valid for this endpoint.'], 401);
         }
 

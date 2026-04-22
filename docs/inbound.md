@@ -54,6 +54,20 @@ Output:
 
 The key is shown **once only**. Store it in your n8n credentials.
 
+### Slash-separated slugs
+
+Slugs can contain forward slashes, which lets you group related endpoints under a common prefix:
+
+```bash
+# These are all valid slugs:
+php artisan n8n:endpoint:create invoices/paid    --handler="App\N8n\InvoicePaidHandler"
+php artisan n8n:endpoint:create invoices/overdue --handler="App\N8n\InvoiceOverdueHandler"
+php artisan n8n:endpoint:create orders/shipped   --handler="App\N8n\OrderShippedHandler"
+php artisan n8n:endpoint:create orders/returned  --handler="App\N8n\OrderReturnedHandler"
+```
+
+The full URL path is preserved exactly — `invoices/paid` becomes `/n8n/in/invoices/paid`. Hyphen-style slugs continue to work alongside slash-style ones.
+
 ---
 
 ## 2. Write a handler
@@ -133,7 +147,7 @@ Add an **HTTP Request** node in your n8n workflow:
 | Field | Value |
 |---|---|
 | Method | `POST` |
-| URL | `https://myapp.com/n8n/in/invoice-paid` |
+| URL | `https://myapp.com/n8n/in/invoice-paid` or `https://myapp.com/n8n/in/invoices/paid` |
 | Header | `X-N8N-Key: n8br_sk_...` |
 | Header | `X-N8N-Execution-Id: {{ $execution.id }}` (idempotency) |
 | Body | JSON with your payload |
@@ -276,7 +290,7 @@ $failed = N8nDelivery::query()
 
 | Column | Type | Default | Description |
 |---|---|---|---|
-| `slug` | string | — | URL segment, unique |
+| `slug` | string | — | URL segment, unique. May contain slashes (e.g. `invoices/paid`) |
 | `handler_class` | string | — | FQCN of your handler |
 | `queue` | string | `default` | Laravel queue to dispatch on |
 | `auth_type` | enum | `api_key` | `api_key`, `bearer`, `hmac`, `none` |

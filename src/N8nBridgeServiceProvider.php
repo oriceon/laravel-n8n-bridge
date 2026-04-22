@@ -98,7 +98,7 @@ final class N8nBridgeServiceProvider extends PackageServiceProvider
         $this->app->singleton(StatsManager::class);
         $this->app->singleton(NotificationDispatcher::class);
 
-        $this->app->singleton(N8nBridgeManager::class, function($app) {
+        $this->app->singleton(N8nBridgeManager::class, function ($app) {
             return new N8nBridgeManager(
                 $app->make(N8nOutboundDispatcher::class),
                 $app->make(StatsManager::class),
@@ -108,7 +108,7 @@ final class N8nBridgeServiceProvider extends PackageServiceProvider
         // Queue system
         $this->app->singleton(QueueManager::class);
         $this->app->singleton(WorkflowDurationUpdater::class);
-        $this->app->singleton(QueueWorker::class, function($app) {
+        $this->app->singleton(QueueWorker::class, function ($app) {
             return new QueueWorker(
                 $app->make(N8nBridgeManager::class),
                 $app->make(CircuitBreakerManager::class),
@@ -121,13 +121,13 @@ final class N8nBridgeServiceProvider extends PackageServiceProvider
 
     public function packageBooted(): void
     {
-        $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');
+        $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
 
         if ($this->app->runningInConsole()) {
             $this->publishes(
-                collect(glob(__DIR__ . '/../database/migrations/*.php'))
-                    ->mapWithKeys(fn($path) => [
-                        $path => database_path('migrations/' . basename($path)),
+                collect(glob(__DIR__.'/../database/migrations/*.php'))
+                    ->mapWithKeys(fn ($path) => [
+                        $path => database_path('migrations/'.basename($path)),
                     ])
                     ->toArray(),
                 'n8n-bridge-migrations'
@@ -144,59 +144,63 @@ final class N8nBridgeServiceProvider extends PackageServiceProvider
 
     private function registerRoutes(): void
     {
-        $prefix     = config('n8n-bridge.inbound.route_prefix', 'n8n/in');
+        $prefix = config('n8n-bridge.inbound.route_prefix', 'n8n/in');
         $middleware = config('n8n-bridge.inbound.middleware', ['api']);
 
         Route::prefix($prefix)
             ->middleware([...$middleware, 'n8n.auth'])
-            ->group(function() {
+            ->group(function () {
+                // Allow slashes in slug so /n8n/in/invoices/paid works alongside /n8n/in/invoices-paid
                 Route::post('{slug}', [N8nInboundController::class, 'receive'])
+                    ->where('slug', '.+')
                     ->name('n8n-bridge.inbound');
             });
 
         // Tools routes — n8n calls Laravel, all HTTP methods supported
         $toolPrefix = config('n8n-bridge.tools.route_prefix', 'n8n/tools');
-        $toolMw     = config('n8n-bridge.tools.middleware', ['api']);
+        $toolMw = config('n8n-bridge.tools.middleware', ['api']);
 
         Route::prefix($toolPrefix)
             ->middleware([...$toolMw, 'n8n.auth'])
-            ->group(function() {
-                // Schema endpoint — also requires auth (via n8n.auth middleware)
+            ->group(function () {
+                // Schema endpoint — fixed path, must be registered before the catch-all
                 Route::get('schema', [N8nToolController::class, 'schema'])
                     ->name('n8n-bridge.tools.schema');
 
-                // Collection: GET /n8n/tools/{name}
-                Route::get('{name}', [N8nToolController::class, 'index'])
+                // Catch-all {path} — allows slashes in tool names and/or IDs.
+                // The controller resolves tool name vs. resource ID internally:
+                //   GET  /n8n/tools/invoices/paid   → tool "invoices/paid" collection  (if tool exists)
+                //                                   → tool "invoices"     item "paid"  (fallback)
+                //   GET  /n8n/tools/invoices/paid/42 → tool "invoices/paid" item "42"
+                //   PUT/PATCH/DELETE last segment is always the ID.
+                Route::get('{path}', [N8nToolController::class, 'index'])
+                    ->where('path', '.+')
                     ->name('n8n-bridge.tools.index');
 
-                // Single: GET /n8n/tools/{name}/{id}
-                Route::get('{name}/{id}', [N8nToolController::class, 'show'])
-                    ->name('n8n-bridge.tools.show');
-
-                // Create / Action: POST /n8n/tools/{name}
-                Route::post('{name}', [N8nToolController::class, 'store'])
+                Route::post('{path}', [N8nToolController::class, 'store'])
+                    ->where('path', '.+')
                     ->name('n8n-bridge.tools.store');
 
-                // Full update: PUT /n8n/tools/{name}/{id}
-                Route::put('{name}/{id}', [N8nToolController::class, 'replace'])
+                Route::put('{path}', [N8nToolController::class, 'replace'])
+                    ->where('path', '.+')
                     ->name('n8n-bridge.tools.replace');
 
-                // Partial update: PATCH /n8n/tools/{name}/{id}
-                Route::patch('{name}/{id}', [N8nToolController::class, 'update'])
+                Route::patch('{path}', [N8nToolController::class, 'update'])
+                    ->where('path', '.+')
                     ->name('n8n-bridge.tools.update');
 
-                // Delete: DELETE /n8n/tools/{name}/{id}
-                Route::delete('{name}/{id}', [N8nToolController::class, 'destroy'])
+                Route::delete('{path}', [N8nToolController::class, 'destroy'])
+                    ->where('path', '.+')
                     ->name('n8n-bridge.tools.destroy');
             });
 
         // Queue progress routes — n8n sends checkpoint updates here
         $queueProgressPrefix = config('n8n-bridge.queue.progress_route_prefix', 'n8n/queue/progress');
-        $queueProgressMw     = config('n8n-bridge.queue.progress_middleware', ['api']);
+        $queueProgressMw = config('n8n-bridge.queue.progress_middleware', ['api']);
 
         Route::prefix($queueProgressPrefix)
             ->middleware([...$queueProgressMw, 'n8n.auth'])
-            ->group(function() {
+            ->group(function () {
                 Route::post('{jobId}', [QueueProgressController::class, 'store'])
                     ->name('n8n-bridge.queue.progress.store');
 
@@ -215,13 +219,12 @@ final class N8nBridgeServiceProvider extends PackageServiceProvider
         // Dynamic outbound event listener — fires for all app events
         if (config('n8n-bridge.outbound.listen_events', true)) {
             try {
-                $table = config('n8n-bridge.table_prefix', 'n8n') . '__event_subscriptions__lists';
+                $table = config('n8n-bridge.table_prefix', 'n8n').'__event_subscriptions__lists';
 
                 if (Schema::hasTable($table)) {
                     Event::listen('*', [OutboundEventListener::class, 'handle']);
                 }
-            }
-            catch (\Throwable) {
+            } catch (\Throwable) {
                 // DB unavailable: ide-helper, CI without DB, fresh install
             }
         }
@@ -229,7 +232,7 @@ final class N8nBridgeServiceProvider extends PackageServiceProvider
 
     private function registerSchedule(): void
     {
-        $this->callAfterResolving(Schedule::class, function(Schedule $schedule): void {
+        $this->callAfterResolving(Schedule::class, function (Schedule $schedule): void {
             // Daily stats aggregation
             $schedule
                 ->job(new AggregateN8nStatsJob(now()->subDay()->toDateString()))

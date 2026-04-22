@@ -21,7 +21,7 @@ use Symfony\Component\Console\Attribute\AsCommand;
  */
 #[AsCommand(name: 'n8n:credential:rotate')]
 #[Signature('n8n:credential:rotate
-        {id             : Credential UUID (full or first 8 chars)}
+        {id             : Credential numeric ID (from n8n:credential:list)}
         {--grace=300    : Seconds the old key stays valid}')]
 #[Description('Rotate the API key for a credential with a grace period')]
 final class CredentialRotateCommand extends Command
@@ -32,11 +32,9 @@ final class CredentialRotateCommand extends Command
      */
     public function handle(CredentialAuthService $auth): int
     {
-        $id = (string) $this->argument('id');
+        $id = (int) $this->argument('id');
 
-        $credential = strlen($id) === 36
-            ? N8nCredential::where('uuid', $id)->first()
-            : N8nCredential::where('uuid', 'like', $id . '%')->first();
+        $credential = N8nCredential::find($id);
 
         if ($credential === null) {
             $this->error("Credential [{$id}] not found.");

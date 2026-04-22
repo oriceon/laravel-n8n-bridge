@@ -106,7 +106,7 @@ N8N_BRIDGE_QUEUE_DURATION_SAMPLES=50
 
 ## 🔑 Authentication
 
-All `/n8n/*` routes require an `X-N8N-Key` header. One credential key works across all modules — inbound, tools, and queue progress.
+All `/n8n/*` routes require an `X-N8N-Key` header. One credential key works across all modules — inbound, tools, and queue progress. Multiple credentials can be attached to the same resource; any of their keys are accepted.
 
 ```bash
 # Create a credential + key
@@ -116,9 +116,13 @@ php artisan n8n:credential:create "Production" --instance=default
 # In n8n: Personal → Credentials → Create credential → Header Auth
 # Name:  X-N8N-Key
 # Value: n8br_sk_a3f9b2c1...
+
+# Attach to endpoints/tools (many-to-many)
+php artisan n8n:credential:attach {id} --all
+php artisan n8n:credential:attach {id} --inbound=invoice-paid --tool=invoices
 ```
 
-See [docs/credentials.md](docs/credentials.md) for rotation, IP whitelisting, grace periods, and multi-webhook setups.
+See [docs/credentials.md](docs/credentials.md) for rotation, IP whitelisting, grace periods, multi-credential setups, and detach commands.
 
 ---
 
@@ -396,21 +400,23 @@ See [docs/notifications.md](docs/notifications.md).
 
 With the default `n8n` prefix:
 
-| Table | Description |
-|---|---|
-| `n8n__credentials__lists` | Credential identities (one per n8n instance) |
-| `n8n__api_keys__lists` | Rotatable API keys (many per credential) |
-| `n8n__workflows__lists` | Workflows synced from n8n |
-| `n8n__endpoints__lists` | Inbound endpoints |
-| `n8n__deliveries__lists` | Full delivery log |
-| `n8n__circuit_breakers__lists` | Per-workflow circuit breaker state |
-| `n8n__stats__lists` | Daily aggregated statistics |
-| `n8n__tools__lists` | Tool definitions |
+| Table                             | Description |
+|-----------------------------------|---|
+| `n8n__credentials__lists`         | Credential identities (one per n8n instance) |
+| `n8n__api_keys__lists`            | Rotatable API keys (many per credential) |
+| `n8n__endpoints__credentials`     | Endpoint ↔ credential pivot (many-to-many) |
+| `n8n__tools__credentials`         | Tool ↔ credential pivot (many-to-many) |
+| `n8n__workflows__lists`           | Workflows synced from n8n |
+| `n8n__endpoints__lists`           | Inbound endpoints |
+| `n8n__deliveries__lists`          | Full delivery log |
+| `n8n__circuit_breakers__lists`    | Per-workflow circuit breaker state |
+| `n8n__stats__lists`               | Daily aggregated statistics |
+| `n8n__tools__lists`               | Tool definitions |
 | `n8n__event_subscriptions__lists` | Laravel event → workflow mappings |
-| `n8n__queue__jobs` | DB queue jobs |
-| `n8n__queue__batches` | Batch grouping |
-| `n8n__queue__failures` | Per-attempt failure history |
-| `n8n__queue__checkpoints` | Live progress nodes from n8n |
+| `n8n__queue__jobs`                | DB queue jobs |
+| `n8n__queue__batches`             | Batch grouping |
+| `n8n__queue__failures`            | Per-attempt failure history |
+| `n8n__queue__checkpoints`         | Live progress nodes from n8n |
 
 ---
 

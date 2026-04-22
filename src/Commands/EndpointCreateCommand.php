@@ -32,7 +32,7 @@ final class EndpointCreateCommand extends Command
 {
     public function handle(): int
     {
-        $slug    = $this->argument('slug');
+        $slug = $this->argument('slug');
         $handler = $this->option('handler');
 
         if ($handler === null) {
@@ -43,20 +43,21 @@ final class EndpointCreateCommand extends Command
 
         // Create a dedicated credential for this endpoint (n8n auth bundle)
         $credential = N8nCredential::create([
-            'name'         => $slug,
+            'name' => $slug,
             'n8n_instance' => 'default',
-            'is_active'    => true,
+            'is_active' => true,
         ]);
 
-        // Create endpoint linked to the credential
+        // Create endpoint and attach the credential via pivot
         $endpoint = N8nEndpoint::create([
-            'credential_id' => $credential->id,
-            'slug'          => $slug,
+            'slug' => $slug,
             'handler_class' => $handler,
-            'queue'         => $this->option('queue'),
-            'rate_limit'    => (int) $this->option('rate-limit'),
-            'max_attempts'  => (int) $this->option('max-attempts'),
+            'queue' => $this->option('queue'),
+            'rate_limit' => (int) $this->option('rate-limit'),
+            'max_attempts' => (int) $this->option('max-attempts'),
         ]);
+
+        $endpoint->credentials()->attach($credential->id);
 
         // Generate API key for the credential
         [$plaintext] = N8nApiKey::generate($credential->id, 'artisan');
@@ -72,7 +73,7 @@ final class EndpointCreateCommand extends Command
                 ['URL',         $endpoint->inboundUrl()],
                 ['Handler',     $handler],
                 ['Queue',       $endpoint->queue],
-                ['Rate Limit',  $endpoint->rate_limit . '/min'],
+                ['Rate Limit',  $endpoint->rate_limit.'/min'],
             ]
         );
 
@@ -84,7 +85,7 @@ final class EndpointCreateCommand extends Command
 
         $this->newLine();
 
-        $this->line('Add to n8n HTTP Request node header: X-N8N-Key: ' . $plaintext);
+        $this->line('Add to n8n HTTP Request node header: X-N8N-Key: '.$plaintext);
 
         return self::SUCCESS;
     }

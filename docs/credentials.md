@@ -4,7 +4,7 @@
 
 ← [Back to README](../README.md)
 
-Every HTTP call between n8n and your Laravel application is authenticated using a single credential key. One key, one credential in n8n, works everywhere.
+Every HTTP call between n8n and your Laravel application is authenticated using a credential key. One credential can be shared across multiple endpoints and tools — or you can assign multiple credentials to the same resource.
 
 ---
 
@@ -23,6 +23,21 @@ n8n instance
 
 All modules share the same `CredentialAuthService` — there is one place in the codebase where key verification happens.
 
+### Many-to-many credential model
+
+Credentials attach to endpoints and tools via pivot tables (many-to-many):
+
+```
+N8nCredential  ──<  endpoint_credentials  >──  N8nEndpoint
+N8nCredential  ──<  tool_credentials      >──  N8nTool
+```
+
+**Access rules:**
+| Credentials attached to resource | Behaviour |
+|---|---|
+| None | Request is rejected — 401 Unauthorized (every resource must have at least one credential) |
+| One or more | Only keys belonging to one of those credentials are accepted |
+
 ---
 
 ## Setup
@@ -36,7 +51,7 @@ php artisan n8n:credential:create "Production" --instance=default
 Output:
 ```
 ✅ Credential created!
-  ID:       a1b2c3d4-...
+  ID:       1
   Name:     Production
   Instance: default
 
@@ -67,12 +82,12 @@ php artisan n8n:tool:create invoices \
   --methods=GET,POST
 
 # Attach the shared credential to everything at once
-php artisan n8n:credential:attach {credential-id} --all
+php artisan n8n:credential:attach {id} --all
 ```
 
 Or attach selectively:
 ```bash
-php artisan n8n:credential:attach {credential-id} \
+php artisan n8n:credential:attach {id} \
   --inbound=invoice-paid \
   --tool=invoices
 ```
@@ -102,7 +117,9 @@ Request arrives at /n8n/in, /n8n/tools, or /n8n/queue/progress
     ▼  Find credential with matching active/grace key (hash_equals, constant-time)
     ▼  Check credential is_active = true
     ▼  (Optional) Verify request IP against credential's allowed_ips
-    ▼  Verify resolved credential.id matches the endpoint's credential_id
+    ▼  Check resource credentials (must have at least one):
+    │     └── none attached  → 401 Unauthorized (resource must have a credential)
+    │     └── 1+ attached    → key must belong to one of those credentials
     │
     ├─ Match → request proceeds
     └─ No match → 401 Unauthorized
@@ -158,13 +175,49 @@ $credential->apiKeys()->update(['status' => 'revoked']);
 
 ---
 
+## Multiple credentials on the same resource
+
+You can attach more than one credential to the same endpoint or tool. Any of their keys will be accepted:
+
+```bash
+# Attach both production and staging credentials to the same tool
+php artisan n8n:credential:attach {prod-credential-id}    --tool=invoices
+php artisan n8n:credential:attach {staging-credential-id} --tool=invoices
+```
+
+Or from code:
+
+```php
+$tool = N8nTool::where('name', 'invoices')->firstOrFail();
+$tool->credentials()->syncWithoutDetaching([$credA->id, $credB->id]);
+```
+
+---
+
+## Detaching credentials
+
+```bash
+# Remove a single credential from an endpoint
+php artisan n8n:credential:attach {id} --detach-inbound=invoice-paid
+
+# Remove a single credential from a tool
+php artisan n8n:credential:attach {id} --detach-tool=invoices
+
+# Remove credential from all endpoints and tools
+php artisan n8n:credential:attach {id} --detach-all
+```
+
+> **Warning:** detaching all credentials from a resource causes it to reject every request with 401. Always keep at least one credential attached.
+
+---
+
 ## Per-endpoint restrictions
 
 The credential key authenticates *who* is calling. You can additionally restrict *what* they can do:
 
 ### IP whitelist (credential-level)
 
-Applies to all endpoints on this credential:
+Applies to all requests made with this credential's key:
 
 ```bash
 php artisan n8n:credential:create "Production" --ips=203.0.113.10,203.0.113.11
@@ -196,7 +249,7 @@ php artisan n8n:credential:create "Production" --instance=default
 php artisan n8n:credential:create "Staging"    --instance=staging
 ```
 
-A staging key cannot access production endpoints.
+A staging key cannot access production endpoints (as long as they have credentials attached).
 
 ---
 
@@ -217,6 +270,11 @@ php artisan n8n:credential:rotate {id} --grace=600
 # Attach credential to endpoints/tools
 php artisan n8n:credential:attach {id} --all
 php artisan n8n:credential:attach {id} --inbound=invoice-paid --tool=invoices
+
+# Detach credential from endpoints/tools
+php artisan n8n:credential:attach {id} --detach-inbound=invoice-paid
+php artisan n8n:credential:attach {id} --detach-tool=invoices
+php artisan n8n:credential:attach {id} --detach-all
 ```
 
 ---
@@ -225,22 +283,35 @@ php artisan n8n:credential:attach {id} --inbound=invoice-paid --tool=invoices
 
 ```php
 use Oriceon\N8nBridge\Models\N8nCredential;
+use Oriceon\N8nBridge\Models\N8nTool;
+use Oriceon\N8nBridge\Models\N8nEndpoint;
 
 $credential = N8nCredential::create(['name' => 'Test', 'is_active' => true]);
 [$plaintext] = $credential->generateKey();
 
-// Attach to tool
-N8nTool::where('name', 'invoices')
-    ->update(['credential_id' => $credential->id]);
+// Attach to tool via pivot
+$tool = N8nTool::where('name', 'invoices')->firstOrFail();
+$tool->credentials()->syncWithoutDetaching([$credential->id]);
 
 // Authenticated GET request
 $this->getJson('/n8n/tools/invoices', ['X-N8N-Key' => $plaintext])
     ->assertOk();
 
-// Same key works on inbound endpoint attached to same credential
-N8nEndpoint::where('slug', 'invoice-paid')
-    ->update(['credential_id' => $credential->id]);
+// Attach to inbound endpoint
+$endpoint = N8nEndpoint::where('slug', 'invoice-paid')->firstOrFail();
+$endpoint->credentials()->syncWithoutDetaching([$credential->id]);
 
 $this->postJson('/n8n/in/invoice-paid', $payload, ['X-N8N-Key' => $plaintext])
     ->assertStatus(202);
+
+// Use factory helper
+$tool2 = N8nTool::factory()
+    ->forCredential($credential)
+    ->create(['name' => 'contacts']);
+
+// Multiple credentials — any key works
+$endpoint2 = N8nEndpoint::factory()
+    ->forCredential($credA)
+    ->forCredential($credB)
+    ->create(['slug' => 'shared-endpoint']);
 ```

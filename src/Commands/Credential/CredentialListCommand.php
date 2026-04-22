@@ -34,9 +34,9 @@ final class CredentialListCommand extends Command
         }
 
         $this->table(
-            ['ID (short)', 'Name', 'Instance', 'Active keys', 'Inbound', 'Tools', 'IPs', 'Status'],
+            ['ID', 'Name', 'Instance', 'Active keys', 'Inbound', 'Tools', 'IPs', 'Status'],
             $credentials->map(fn(N8nCredential $c) => [
-                substr($c->uuid, 0, 8) . '...',
+                $c->id,
                 $c->name,
                 $c->n8n_instance,
                 $c->apiKeys->whereIn('status', ['active', 'grace'])->count(),

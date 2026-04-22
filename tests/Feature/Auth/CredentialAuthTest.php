@@ -3,16 +3,18 @@
 declare(strict_types=1);
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Queue;
 use Oriceon\N8nBridge\Auth\CredentialAuthService;
 use Oriceon\N8nBridge\Models\N8nCredential;
 use Oriceon\N8nBridge\Models\N8nEndpoint;
 use Oriceon\N8nBridge\Models\N8nTool;
+use Oriceon\N8nBridge\Models\N8nWorkflow;
 use Tests\Auth\SimpleTool;
 
 covers(CredentialAuthService::class);
 
-beforeAll(function() {
-    if ( ! class_exists(SimpleTool::class)) {
+beforeAll(function () {
+    if (! class_exists(SimpleTool::class)) {
         eval('
             namespace Tests\Auth;
             use Oriceon\N8nBridge\DTOs\N8nToolRequest;
@@ -32,8 +34,8 @@ beforeAll(function() {
 
 // ── CredentialAuthService unit tests ──────────────────────────────────────────
 
-describe('CredentialAuthService::authenticate()', function() {
-    it('resolves credential from correct X-N8N-Key header', function() {
+describe('CredentialAuthService::authenticate()', function () {
+    it('resolves credential from correct X-N8N-Key header', function () {
         [$credential, $plaintext] = makeCredentialWithKey();
 
         $request = Request::create('/', 'GET', [], [], [], [
@@ -47,7 +49,7 @@ describe('CredentialAuthService::authenticate()', function() {
             ->and($reason)->toBeNull();
     });
 
-    it('accepts key via Authorization: Bearer header', function() {
+    it('accepts key via Authorization: Bearer header', function () {
         [$credential, $plaintext] = makeCredentialWithKey();
 
         $request = Request::create('/', 'GET', [], [], [], [
@@ -58,14 +60,14 @@ describe('CredentialAuthService::authenticate()', function() {
         expect($resolved?->id)->toBe($credential->id);
     });
 
-    it('returns missing_key when no header sent', function() {
+    it('returns missing_key when no header sent', function () {
         [, $reason] = app(CredentialAuthService::class)->authenticate(
             Request::create('/')
         );
         expect($reason)->toBe('missing_key');
     });
 
-    it('returns invalid_key for wrong key', function() {
+    it('returns invalid_key for wrong key', function () {
         makeCredentialWithKey(); // ensure at least one credential exists
 
         $request = Request::create('/', 'GET', [], [], [], [
@@ -76,7 +78,7 @@ describe('CredentialAuthService::authenticate()', function() {
         expect($reason)->toBe('invalid_key');
     });
 
-    it('rejects revoked key', function() {
+    it('rejects revoked key', function () {
         [$credential, $plaintext] = makeCredentialWithKey();
         $credential->apiKeys()->update(['status' => 'revoked']);
 
@@ -89,8 +91,8 @@ describe('CredentialAuthService::authenticate()', function() {
     });
 });
 
-describe('CredentialAuthService::verifyIp()', function() {
-    it('returns true when no IP restriction', function() {
+describe('CredentialAuthService::verifyIp()', function () {
+    it('returns true when no IP restriction', function () {
         $credential = N8nCredential::factory()->create(['allowed_ips' => null]);
         expect(app(CredentialAuthService::class)->verifyIp(
             Request::create('/'),
@@ -98,7 +100,7 @@ describe('CredentialAuthService::verifyIp()', function() {
         ))->toBeTrue();
     });
 
-    it('returns false when IP not in whitelist', function() {
+    it('returns false when IP not in whitelist', function () {
         $credential = N8nCredential::factory()->create(['allowed_ips' => ['1.2.3.4']]);
         expect(app(CredentialAuthService::class)->verifyIp(
             Request::create('/'),
@@ -109,41 +111,41 @@ describe('CredentialAuthService::verifyIp()', function() {
 
 // ── All /n8n/* routes require auth ───────────────────────────────────────────
 
-describe('All /n8n/* routes require authentication', function() {
-    it('inbound endpoint returns 401 without key', function() {
+describe('All /n8n/* routes require authentication', function () {
+    it('inbound endpoint returns 401 without key', function () {
         [$credential] = makeCredentialWithKey();
 
         N8nEndpoint::factory()->forCredential($credential)->create([
-            'slug'          => 'auth-required-inbound',
+            'slug' => 'auth-required-inbound',
             'handler_class' => 'App\\N8n\\TestHandler',
         ]);
 
         $this->postJson('/n8n/in/auth-required-inbound', [])->assertStatus(401);
     });
 
-    it('tool returns 401 without key', function() {
+    it('tool returns 401 without key', function () {
         [$credential] = makeCredentialWithKey();
 
         N8nTool::factory()->forCredential($credential)->create([
-            'name'            => 'auth-required-tool',
-            'handler_class'   => 'Tests\\Auth\\SimpleTool',
+            'name' => 'auth-required-tool',
+            'handler_class' => 'Tests\\Auth\\SimpleTool',
             'allowed_methods' => ['GET'],
         ]);
 
         $this->getJson('/n8n/tools/auth-required-tool')->assertStatus(401);
     });
 
-    it('same credential key works for both inbound and tools', function() {
+    it('same credential key works for both inbound and tools', function () {
         [$credential, $key] = makeCredentialWithKey();
 
         N8nEndpoint::factory()->forCredential($credential)->create([
-            'slug'          => 'same-key-inbound',
+            'slug' => 'same-key-inbound',
             'handler_class' => 'App\\N8n\\TestHandler',
         ]);
 
         N8nTool::factory()->forCredential($credential)->create([
-            'name'            => 'same-key-tool',
-            'handler_class'   => 'Tests\\Auth\\SimpleTool',
+            'name' => 'same-key-tool',
+            'handler_class' => 'Tests\\Auth\\SimpleTool',
             'allowed_methods' => ['GET'],
         ]);
 
@@ -151,30 +153,75 @@ describe('All /n8n/* routes require authentication', function() {
         $this->getJson('/n8n/tools/same-key-tool', ['X-N8N-Key' => $key])->assertOk();
     });
 
-    it('key from credential A does not work for tool on credential B', function() {
+    it('key from credential A does not work for tool on credential B only', function () {
         [$credentialA, $keyA] = makeCredentialWithKey();
-        [$credentialB]        = makeCredentialWithKey();
+        [$credentialB] = makeCredentialWithKey();
 
         N8nTool::factory()->forCredential($credentialB)->create([
-            'name'            => 'tool-on-b-only',
-            'handler_class'   => 'Tests\\Auth\\SimpleTool',
+            'name' => 'tool-on-b-only',
+            'handler_class' => 'Tests\\Auth\\SimpleTool',
             'allowed_methods' => ['GET'],
         ]);
 
         $this->getJson('/n8n/tools/tool-on-b-only', ['X-N8N-Key' => $keyA])
             ->assertStatus(401);
     });
+
+    it('tool with no credentials attached rejects any key with 401', function () {
+        [, $key] = makeCredentialWithKey();
+
+        N8nTool::factory()->create([
+            'name' => 'no-cred-tool',
+            'handler_class' => 'Tests\\Auth\\SimpleTool',
+            'allowed_methods' => ['GET'],
+        ]);
+
+        $this->getJson('/n8n/tools/no-cred-tool', ['X-N8N-Key' => $key])->assertStatus(401);
+    });
+
+    it('tool with multiple credentials accepts keys from any of them', function () {
+        [$credA, $keyA] = makeCredentialWithKey();
+        [$credB, $keyB] = makeCredentialWithKey();
+
+        N8nTool::factory()
+            ->forCredential($credA)
+            ->forCredential($credB)
+            ->create([
+                'name' => 'multi-cred-tool',
+                'handler_class' => 'Tests\\Auth\\SimpleTool',
+                'allowed_methods' => ['GET'],
+            ]);
+
+        $this->getJson('/n8n/tools/multi-cred-tool', ['X-N8N-Key' => $keyA])->assertOk();
+        $this->getJson('/n8n/tools/multi-cred-tool', ['X-N8N-Key' => $keyB])->assertOk();
+    });
+
+    it('inbound endpoint with no credentials attached rejects any key with 401', function () {
+        [, $key] = makeCredentialWithKey();
+        $workflow = N8nWorkflow::factory()->create();
+
+        N8nEndpoint::factory()->create([
+            'slug' => 'no-cred-inbound',
+            'handler_class' => 'App\\N8n\\TestHandler',
+        ]);
+
+        $this->postJson('/n8n/in/no-cred-inbound', [], [
+            'X-N8N-Key' => $key,
+            'X-N8N-Workflow-Id' => $workflow->n8n_id,
+            'X-N8N-Execution-Id' => '12345',
+        ])->assertStatus(401);
+    });
 });
 
 // ── Key rotation ──────────────────────────────────────────────────────────────
 
-describe('Key rotation', function() {
-    it('new key works immediately, old key works during grace period', function() {
+describe('Key rotation', function () {
+    it('new key works immediately, old key works during grace period', function () {
         [$credential, $oldKey] = makeCredentialWithKey();
 
         N8nTool::factory()->forCredential($credential)->create([
-            'name'            => 'rotation-tool',
-            'handler_class'   => 'Tests\\Auth\\SimpleTool',
+            'name' => 'rotation-tool',
+            'handler_class' => 'Tests\\Auth\\SimpleTool',
             'allowed_methods' => ['GET'],
         ]);
 
@@ -186,12 +233,12 @@ describe('Key rotation', function() {
         $this->getJson('/n8n/tools/rotation-tool', ['X-N8N-Key' => $oldKey])->assertOk();
     });
 
-    it('revoked key is rejected immediately', function() {
+    it('revoked key is rejected immediately', function () {
         [$credential, $key] = makeCredentialWithKey();
 
         N8nTool::factory()->forCredential($credential)->create([
-            'name'            => 'revoke-test-tool',
-            'handler_class'   => 'Tests\\Auth\\SimpleTool',
+            'name' => 'revoke-test-tool',
+            'handler_class' => 'Tests\\Auth\\SimpleTool',
             'allowed_methods' => ['GET'],
         ]);
 

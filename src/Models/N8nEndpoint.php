@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Attributes\Scope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Oriceon\N8nBridge\Concerns\HasDynamicTable;
 use Oriceon\N8nBridge\Concerns\HasPublicUuid;
@@ -22,7 +23,6 @@ use Oriceon\N8nBridge\Enums\RetryStrategy;
  * Inbound endpoint — for receiving n8n calls.
  *
  * @property int $id
- * @property int|null $credential_id
  * @property string $slug
  * @property AuthType $auth_type
  * @property string $handler_class
@@ -39,7 +39,6 @@ use Oriceon\N8nBridge\Enums\RetryStrategy;
  */
 #[Fillable([
     'uuid',
-    'credential_id',
     'slug',
     'auth_type',
     'handler_class',
@@ -111,6 +110,22 @@ class N8nEndpoint extends Model
     }
 
     // ── Relations ─────────────────────────────────────────────────────────────
+
+    /**
+     * Credentials allowed to access this endpoint.
+     * Empty collection means any authenticated caller is accepted.
+     */
+    public function credentials(): BelongsToMany
+    {
+        $prefix = config('n8n-bridge.table_prefix', 'n8n');
+
+        return $this->belongsToMany(
+            N8nCredential::class,
+            "{$prefix}__endpoints__credentials",
+            'endpoint_id',
+            'credential_id'
+        );
+    }
 
     public function apiKeys(): HasMany
     {

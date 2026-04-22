@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Attributes\Scope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Oriceon\N8nBridge\Concerns\HasDynamicTable;
 use Oriceon\N8nBridge\Concerns\HasPublicUuid;
 use Oriceon\N8nBridge\Database\Factories\N8nToolFactory;
@@ -32,20 +32,19 @@ use Oriceon\N8nBridge\Database\Factories\N8nToolFactory;
  *   PATCH  /n8n/tools/{name}/{id}  → handler->patch()
  *   DELETE /n8n/tools/{name}/{id}  → handler->delete()
  *
- * @property int         $id
- * @property string      $name             URL slug: /n8n/tools/{name}
- * @property string      $label            Human-readable name for schema
+ * @property int $id
+ * @property string $name URL slug: /n8n/tools/{name}
+ * @property string $label Human-readable name for schema
  * @property string|null $description
- * @property string|null $category         Groups tools in OpenAPI schema
- * @property string      $handler_class    FQDN of N8nToolHandler subclass
- * @property array|null  $allowed_methods  null = POST only (backward compat)
- * @property array|null  $allowed_ips      null = allow all IPs
- * @property int         $rate_limit       requests per minute (0 = unlimited)
- * @property int|null    $credential_id
- * @property array|null  $request_schema   JSON Schema for POST/PATCH body
- * @property array|null  $response_schema  JSON Schema for response
- * @property array|null  $examples         Example request payloads
- * @property bool        $is_active
+ * @property string|null $category Groups tools in OpenAPI schema
+ * @property string $handler_class FQDN of N8nToolHandler subclass
+ * @property array|null $allowed_methods null = POST only (backward compat)
+ * @property array|null $allowed_ips null = allow all IPs
+ * @property int $rate_limit requests per minute (0 = unlimited)
+ * @property array|null $request_schema JSON Schema for POST/PATCH body
+ * @property array|null $response_schema JSON Schema for response
+ * @property array|null $examples Example request payloads
+ * @property bool $is_active
  */
 #[Fillable([
     'uuid',
@@ -57,7 +56,6 @@ use Oriceon\N8nBridge\Database\Factories\N8nToolFactory;
     'allowed_methods',
     'allowed_ips',
     'rate_limit',
-    'credential_id',
     'request_schema',
     'response_schema',
     'examples',
@@ -92,21 +90,12 @@ class N8nTool extends Model
 
     // ── Scopes ────────────────────────────────────────────────────────────────
 
-    /**
-     * @param Builder $q
-     * @return Builder
-     */
     #[Scope]
     protected function active(Builder $q): Builder
     {
         return $q->where('is_active', true);
     }
 
-    /**
-     * @param Builder $q
-     * @param string $category
-     * @return Builder
-     */
     #[Scope]
     protected function inCategory(Builder $q, string $category): Builder
     {
@@ -118,9 +107,6 @@ class N8nTool extends Model
     /**
      * Whether this tool allows a specific HTTP method.
      * null = POST only (backward compat with old single-method tools).
-     *
-     * @param string $method
-     * @return bool
      */
     public function allowsMethod(string $method): bool
     {
@@ -152,9 +138,20 @@ class N8nTool extends Model
 
     // ── Relations ─────────────────────────────────────────────────────────────
 
-    public function credential(): BelongsTo
+    /**
+     * Credentials allowed to access this tool.
+     * Empty collection means any authenticated caller is accepted.
+     */
+    public function credentials(): BelongsToMany
     {
-        return $this->belongsTo(N8nCredential::class, 'credential_id');
+        $prefix = config('n8n-bridge.table_prefix', 'n8n');
+
+        return $this->belongsToMany(
+            N8nCredential::class,
+            "{$prefix}__tools__credentials",
+            'tool_id',
+            'credential_id'
+        );
     }
 
     protected function getTableBaseName(): string

@@ -10,8 +10,8 @@ use Tests\Support\EchoTool;
 
 covers(N8nToolController::class);
 
-beforeAll(function() {
-    if ( ! class_exists(EchoTool::class)) {
+beforeAll(function () {
+    if (! class_exists(EchoTool::class)) {
         eval('
             namespace Tests\Support;
             use Oriceon\N8nBridge\DTOs\N8nToolRequest;
@@ -43,7 +43,7 @@ beforeAll(function() {
 function createToolWithCredential(array $attrs = []): array
 {
     [$credential, $key] = makeCredentialWithKey();
-    $tool               = N8nTool::factory()->forCredential($credential)->create(array_merge([
+    $tool = N8nTool::factory()->forCredential($credential)->create(array_merge([
         'handler_class' => 'Tests\Support\EchoTool',
     ], $attrs));
 
@@ -52,10 +52,10 @@ function createToolWithCredential(array $attrs = []): array
 
 // ── HTTP method routing ───────────────────────────────────────────────────────
 
-describe('HTTP method routing', function() {
-    it('GET /n8n/tools/{name} → handler->get()', function() {
+describe('HTTP method routing', function () {
+    it('GET /n8n/tools/{name} → handler->get()', function () {
         [, , $key] = createToolWithCredential([
-            'name'            => 'invoices',
+            'name' => 'invoices',
             'allowed_methods' => ['GET', 'POST'],
         ]);
 
@@ -64,9 +64,9 @@ describe('HTTP method routing', function() {
             ->assertJsonPath('data.0.echo', 'hello');
     });
 
-    it('GET /n8n/tools/{name}/{id} → handler->getById()', function() {
+    it('GET /n8n/tools/{name}/{id} → handler->getById()', function () {
         [, , $key] = createToolWithCredential([
-            'name'            => 'items',
+            'name' => 'items',
             'allowed_methods' => ['GET'],
         ]);
 
@@ -76,9 +76,9 @@ describe('HTTP method routing', function() {
             ->assertJsonPath('data.found', true);
     });
 
-    it('POST /n8n/tools/{name} → handler->post()', function() {
+    it('POST /n8n/tools/{name} → handler->post()', function () {
         [, , $key] = createToolWithCredential([
-            'name'            => 'send-email',
+            'name' => 'send-email',
             'allowed_methods' => ['POST'],
         ]);
 
@@ -88,9 +88,9 @@ describe('HTTP method routing', function() {
             ->assertJsonPath('data.created', true);
     });
 
-    it('PATCH /n8n/tools/{name}/{id} → handler->patch()', function() {
+    it('PATCH /n8n/tools/{name}/{id} → handler->patch()', function () {
         [, , $key] = createToolWithCredential([
-            'name'            => 'contacts',
+            'name' => 'contacts',
             'allowed_methods' => ['GET', 'POST', 'PATCH'],
         ]);
 
@@ -100,9 +100,9 @@ describe('HTTP method routing', function() {
             ->assertJsonPath('data.updated', true);
     });
 
-    it('DELETE /n8n/tools/{name}/{id} → handler->delete()', function() {
+    it('DELETE /n8n/tools/{name}/{id} → handler->delete()', function () {
         [, , $key] = createToolWithCredential([
-            'name'            => 'records',
+            'name' => 'records',
             'allowed_methods' => ['GET', 'DELETE'],
         ]);
 
@@ -115,32 +115,32 @@ describe('HTTP method routing', function() {
 
 // ── Authentication (required on all routes) ───────────────────────────────────
 
-describe('Authentication', function() {
-    it('returns 401 without X-N8N-Key', function() {
+describe('Authentication', function () {
+    it('returns 401 without X-N8N-Key', function () {
         [, , $key] = createToolWithCredential([
-            'name'            => 'secured-nokey',
+            'name' => 'secured-nokey',
             'allowed_methods' => ['GET'],
         ]);
 
         $this->getJson('/n8n/tools/secured-nokey')->assertStatus(401);
     });
 
-    it('returns 401 with wrong key', function() {
+    it('returns 401 with wrong key', function () {
         [, , $key] = createToolWithCredential([
-            'name'            => 'secured-wrongkey',
+            'name' => 'secured-wrongkey',
             'allowed_methods' => ['GET'],
         ]);
 
         $this->getJson('/n8n/tools/secured-wrongkey', ['X-N8N-Key' => 'wrong'])->assertStatus(401);
     });
 
-    it('returns 401 when key belongs to different credential', function() {
-        [$credentialA]        = makeCredentialWithKey();
+    it('returns 401 when key belongs to different credential', function () {
+        [$credentialA] = makeCredentialWithKey();
         [$credentialB, $keyB] = makeCredentialWithKey();
 
         N8nTool::factory()->forCredential($credentialA)->create([
-            'name'            => 'tool-credential-a',
-            'handler_class'   => 'Tests\Support\EchoTool',
+            'name' => 'tool-credential-a',
+            'handler_class' => 'Tests\Support\EchoTool',
             'allowed_methods' => ['GET'],
         ]);
 
@@ -148,9 +148,9 @@ describe('Authentication', function() {
             ->assertStatus(401);
     });
 
-    it('correct key works', function() {
+    it('correct key works', function () {
         [, , $key] = createToolWithCredential([
-            'name'            => 'secured-ok',
+            'name' => 'secured-ok',
             'allowed_methods' => ['GET'],
         ]);
 
@@ -160,10 +160,10 @@ describe('Authentication', function() {
 
 // ── Method restriction ────────────────────────────────────────────────────────
 
-describe('Method restriction', function() {
-    it('returns 405 for disallowed HTTP method', function() {
+describe('Method restriction', function () {
+    it('returns 405 for disallowed HTTP method', function () {
         [, , $key] = createToolWithCredential([
-            'name'            => 'readonly',
+            'name' => 'readonly',
             'allowed_methods' => ['GET'],
         ]);
 
@@ -171,9 +171,9 @@ describe('Method restriction', function() {
             ->assertStatus(405);
     });
 
-    it('null allowed_methods defaults to POST only', function() {
+    it('null allowed_methods defaults to POST only', function () {
         [, , $key] = createToolWithCredential([
-            'name'            => 'legacy',
+            'name' => 'legacy',
             'allowed_methods' => null,
         ]);
 
@@ -184,21 +184,21 @@ describe('Method restriction', function() {
 
 // ── 404 / inactive ────────────────────────────────────────────────────────────
 
-describe('404 and inactive', function() {
-    it('returns 404 for unknown tool (even without key)', function() {
+describe('404 and inactive', function () {
+    it('returns 404 for unknown tool (even without key)', function () {
         // 404 before auth check — tool doesn't exist
         $this->getJson('/n8n/tools/nonexistent')->assertStatus(401); // middleware runs first
     });
 
-    it('returns 401 without key even for unknown tool', function() {
+    it('returns 401 without key even for unknown tool', function () {
         $this->postJson('/n8n/tools/nonexistent', [])->assertStatus(401);
     });
 
-    it('returns 404 for inactive tool (with valid key)', function() {
+    it('returns 404 for inactive tool (with valid key)', function () {
         [, , $key] = createToolWithCredential([
-            'name'            => 'disabled',
+            'name' => 'disabled',
             'allowed_methods' => ['GET', 'POST'],
-            'is_active'       => false,
+            'is_active' => false,
         ]);
 
         $this->getJson('/n8n/tools/disabled', ['X-N8N-Key' => $key])->assertStatus(404);
@@ -207,12 +207,12 @@ describe('404 and inactive', function() {
 
 // ── Events ────────────────────────────────────────────────────────────────────
 
-describe('Events', function() {
-    it('fires N8nToolCalledEvent on successful call', function() {
+describe('Events', function () {
+    it('fires N8nToolCalledEvent on successful call', function () {
         Event::fake([N8nToolCalledEvent::class]);
 
         [, , $key] = createToolWithCredential([
-            'name'            => 'eventful',
+            'name' => 'eventful',
             'allowed_methods' => ['POST'],
         ]);
 
@@ -221,19 +221,19 @@ describe('Events', function() {
 
         Event::assertDispatched(
             N8nToolCalledEvent::class,
-            static fn($e) => $e->tool->name === 'eventful' && $e->response->isSuccess()
+            static fn ($e) => $e->tool->name === 'eventful' && $e->response->isSuccess()
         );
     });
 });
 
 // ── Rate limiting ─────────────────────────────────────────────────────────────
 
-describe('Rate limiting', function() {
-    it('returns 429 when rate limit is exceeded', function() {
+describe('Rate limiting', function () {
+    it('returns 429 when rate limit is exceeded', function () {
         [, , $key] = createToolWithCredential([
-            'name'            => 'limited',
+            'name' => 'limited',
             'allowed_methods' => ['POST'],
-            'rate_limit'      => 1,
+            'rate_limit' => 1,
         ]);
 
         $this->postJson('/n8n/tools/limited', [], ['X-N8N-Key' => $key])->assertOk();
@@ -243,13 +243,13 @@ describe('Rate limiting', function() {
 
 // ── OpenAPI schema ────────────────────────────────────────────────────────────
 
-describe('OpenAPI schema', function() {
-    it('includes GET and POST paths for multi-method tool', function() {
+describe('OpenAPI schema', function () {
+    it('includes GET and POST paths for multi-method tool', function () {
         [, , $key] = createToolWithCredential([
-            'name'            => 'contacts',
-            'label'           => 'Contacts',
+            'name' => 'contacts',
+            'label' => 'Contacts',
             'allowed_methods' => ['GET', 'POST'],
-            'category'        => 'crm',
+            'category' => 'crm',
         ]);
 
         $paths = $this->getJson('/n8n/tools/schema', ['X-N8N-Key' => $key])
@@ -264,16 +264,16 @@ describe('OpenAPI schema', function() {
             ->toHaveKey('post');
     });
 
-    it('excludes inactive tools', function() {
+    it('excludes inactive tools', function () {
         [, , $key] = createToolWithCredential([
-            'name'            => 'active-tool-schema',
+            'name' => 'active-tool-schema',
             'allowed_methods' => ['POST'],
-            'is_active'       => true,
+            'is_active' => true,
         ]);
         createToolWithCredential([
-            'name'            => 'inactive-tool-schema',
+            'name' => 'inactive-tool-schema',
             'allowed_methods' => ['POST'],
-            'is_active'       => false,
+            'is_active' => false,
         ]);
 
         $paths = $this->getJson('/n8n/tools/schema', ['X-N8N-Key' => $key])->json('paths');
@@ -283,12 +283,99 @@ describe('OpenAPI schema', function() {
             ->not->toHaveKey('/n8n/tools/inactive-tool-schema');
     });
 
-    it('includes X-N8N-Key security scheme definition', function() {
+    it('includes X-N8N-Key security scheme definition', function () {
         [, $key] = makeCredentialWithKey();
 
         expect(
             $this->getJson('/n8n/tools/schema', ['X-N8N-Key' => $key])
                 ->json('components.securitySchemes.WebhookKey.name')
         )->toBe('X-N8N-Key');
+    });
+});
+
+// ── Slash-path tool names ─────────────────────────────────────────────────────
+
+describe('Slash-path tool names', function () {
+    it('GET /n8n/tools/crm/contacts → collection when tool is named "crm/contacts"', function () {
+        [, , $key] = createToolWithCredential([
+            'name' => 'crm/contacts',
+            'allowed_methods' => ['GET'],
+        ]);
+
+        $this->getJson('/n8n/tools/crm/contacts?filter[q]=john', ['X-N8N-Key' => $key])
+            ->assertOk()
+            ->assertJsonPath('data.0.echo', 'john');
+    });
+
+    it('GET /n8n/tools/crm/contacts/42 → getById when tool is named "crm/contacts"', function () {
+        [, , $key] = createToolWithCredential([
+            'name' => 'crm/contacts',
+            'allowed_methods' => ['GET'],
+        ]);
+
+        $this->getJson('/n8n/tools/crm/contacts/42', ['X-N8N-Key' => $key])
+            ->assertOk()
+            ->assertJsonPath('data.id', '42');
+    });
+
+    it('POST /n8n/tools/billing/invoices → post() on "billing/invoices" tool', function () {
+        [, , $key] = createToolWithCredential([
+            'name' => 'billing/invoices',
+            'allowed_methods' => ['POST'],
+        ]);
+
+        $this->postJson('/n8n/tools/billing/invoices', ['message' => 'hi'], ['X-N8N-Key' => $key])
+            ->assertOk()
+            ->assertJsonPath('data.created', true);
+    });
+
+    it('PATCH /n8n/tools/billing/invoices/7 → patch() on "billing/invoices" tool, id=7', function () {
+        [, , $key] = createToolWithCredential([
+            'name' => 'billing/invoices',
+            'allowed_methods' => ['GET', 'PATCH'],
+        ]);
+
+        $this->patchJson('/n8n/tools/billing/invoices/7', [], ['X-N8N-Key' => $key])
+            ->assertOk()
+            ->assertJsonPath('data.id', '7')
+            ->assertJsonPath('data.updated', true);
+    });
+
+    it('DELETE /n8n/tools/billing/invoices/7 → delete() on "billing/invoices" tool', function () {
+        [, , $key] = createToolWithCredential([
+            'name' => 'billing/invoices',
+            'allowed_methods' => ['GET', 'DELETE'],
+        ]);
+
+        $this->deleteJson('/n8n/tools/billing/invoices/7', [], ['X-N8N-Key' => $key])
+            ->assertOk()
+            ->assertJsonPath('data.id', '7')
+            ->assertJsonPath('data.deleted', true);
+    });
+
+    it('GET /n8n/tools/crm/contacts falls back to getById when only tool "crm" exists', function () {
+        [, , $key] = createToolWithCredential([
+            'name' => 'crm',
+            'allowed_methods' => ['GET'],
+        ]);
+
+        // "crm/contacts" tool does not exist → resolves to tool "crm" with id "contacts"
+        $this->getJson('/n8n/tools/crm/contacts', ['X-N8N-Key' => $key])
+            ->assertOk()
+            ->assertJsonPath('data.id', 'contacts');
+    });
+
+    it('hyphen-style slugs still work alongside slash-style', function () {
+        [, , $key1] = createToolWithCredential([
+            'name' => 'crm-contacts',
+            'allowed_methods' => ['GET'],
+        ]);
+        [, , $key2] = createToolWithCredential([
+            'name' => 'crm/contacts-v2',
+            'allowed_methods' => ['GET'],
+        ]);
+
+        $this->getJson('/n8n/tools/crm-contacts', ['X-N8N-Key' => $key1])->assertOk();
+        $this->getJson('/n8n/tools/crm/contacts-v2', ['X-N8N-Key' => $key2])->assertOk();
     });
 });

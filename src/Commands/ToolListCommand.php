@@ -22,7 +22,7 @@ final class ToolListCommand extends Command
 {
     public function handle(): int
     {
-        $tools = N8nTool::with('credential')->orderBy('category')->orderBy('name')->get();
+        $tools = N8nTool::with('credentials')->orderBy('category')->orderBy('name')->get();
 
         if ($tools->isEmpty()) {
             $this->info('No tools registered.');
@@ -33,14 +33,14 @@ final class ToolListCommand extends Command
 
         $this->table(
             ['Name', 'Label', 'Category', 'Methods', 'Handler', 'Rate', 'Credential', 'Active'],
-            $tools->map(fn(N8nTool $t) => [
+            $tools->map(fn (N8nTool $t) => [
                 $t->name,
                 $t->label,
                 $t->category ?? '-',
                 $t->allowed_methods ? implode(',', $t->allowed_methods) : 'POST',
                 class_basename($t->handler_class),
                 $t->rate_limit > 0 ? "{$t->rate_limit}/min" : '∞',
-                $t->credential ? substr($t->credential->name, 0, 15) : '🔓 open',
+                $t->credentials->isNotEmpty() ? $t->credentials->map(fn ($c) => substr($c->name, 0, 10))->implode(',') : '🔓 open',
                 $t->is_active ? '✅' : '❌',
             ])
         );

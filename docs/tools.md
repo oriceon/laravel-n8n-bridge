@@ -8,6 +8,8 @@ Tools expose your application's data and actions to n8n workflows. n8n makes HTT
 
 Tools support **all HTTP methods** — use GET for data retrieval, POST for actions, PATCH/DELETE for mutations. One handler class, all methods you choose.
 
+Tool names can contain forward slashes to group related tools: `billing/invoices`, `crm/contacts`, etc.
+
 ---
 
 ## Concept
@@ -132,19 +134,42 @@ php artisan n8n:tool:create invoices \
   --rate-limit=120
 ```
 
----
-
-## 3. Attach a credential for authentication
+The tool name can contain slashes to create a namespace prefix:
 
 ```bash
-# Create webhook (once per n8n instance)
+# Name "billing/invoices" → URL /n8n/tools/billing/invoices
+php artisan n8n:tool:create billing/invoices \
+  --handler="App\N8n\Tools\InvoicesTool" \
+  --methods=GET,POST,PATCH
+
+# Name "crm/contacts" → URL /n8n/tools/crm/contacts
+php artisan n8n:tool:create crm/contacts \
+  --handler="App\N8n\Tools\ContactsTool" \
+  --methods=GET,PATCH
+```
+
+---
+
+## 3. Attach credentials for authentication
+
+Every tool **must have at least one credential attached** — a tool with no credentials attached rejects all requests with 401.
+A tool with **one or more credentials attached** only accepts keys belonging to those credentials.
+
+```bash
+# Create credential (once per n8n instance)
 php artisan n8n:credential:create "Production"
 
 # Attach to this tool
-php artisan n8n:credential:attach {credential-id} --tool=invoices
+php artisan n8n:credential:attach {id} --tool=invoices
+
+# Attach a second credential (e.g. staging) — both keys work
+php artisan n8n:credential:attach {staging-credential-id} --tool=invoices
 
 # Or attach to everything at once
-php artisan n8n:credential:attach {credential-id} --all
+php artisan n8n:credential:attach {id} --all
+
+# Detach a credential
+php artisan n8n:credential:attach {id} --detach-tool=invoices
 ```
 
 ---
@@ -211,6 +236,8 @@ Header: X-N8N-Key: n8br_sk_...
 | `PATCH` | `/n8n/tools/{name}/{id}` | `patch(request, id)` |
 | `DELETE` | `/n8n/tools/{name}/{id}` | `delete(request, id)` |
 
+`{name}` may contain slashes (e.g. `billing/invoices`). `{id}` is always the last path segment.
+
 Unimplemented methods return `405 Method Not Allowed` automatically.
 
 Control which methods n8n can use via `--methods`:
@@ -221,6 +248,19 @@ Control which methods n8n can use via `--methods`:
 ```
 
 `null` (default) = POST only (backward compat with pre-existing tools).
+
+### Path resolution for slash-style names
+
+The router uses a single catch-all `{path}` and resolves the tool name and resource ID internally:
+
+| Request | Tool `billing/invoices` exists? | Resolved as |
+|---|---|---|
+| `GET /n8n/tools/billing/invoices` | ✅ yes | Collection — calls `get()` |
+| `GET /n8n/tools/billing/invoices` | ❌ no | Tool `billing`, item `invoices` — calls `getById()` |
+| `GET /n8n/tools/billing/invoices/42` | ✅ yes | Tool `billing/invoices`, item `42` — calls `getById()` |
+| `PATCH /n8n/tools/billing/invoices/42` | any | Last segment is always the ID — calls `patch()` on tool `billing/invoices` |
+
+Rule: **for GET and POST**, the full path is tried as a tool name first (collection); if no match, the last segment becomes the resource ID. **For PUT/PATCH/DELETE**, the last segment is always the ID.
 
 ---
 

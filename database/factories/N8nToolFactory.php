@@ -16,21 +16,31 @@ final class N8nToolFactory extends Factory
     public function definition(): array
     {
         return [
-            'uuid'            => (string) Str::uuid(),
-            'credential_id'   => N8nCredential::factory(),
-            'name'            => fake()->unique()->slug(2),
-            'label'           => fake()->words(2, true),
-            'description'     => fake()->optional()->sentence(),
-            'category'        => fake()->optional()->word(),
-            'handler_class'   => 'App\\N8n\\Tools\\DefaultTool',
+            'uuid' => (string) Str::uuid(),
+            'name' => fake()->unique()->slug(2),
+            'label' => fake()->words(2, true),
+            'description' => fake()->optional()->sentence(),
+            'category' => fake()->optional()->word(),
+            'handler_class' => 'App\\N8n\\Tools\\DefaultTool',
             'allowed_methods' => null,
-            'allowed_ips'     => null,
-            'rate_limit'      => 120,
-            'request_schema'  => ['type' => 'object'],
+            'allowed_ips' => null,
+            'rate_limit' => 120,
+            'request_schema' => ['type' => 'object'],
             'response_schema' => ['type' => 'object'],
-            'examples'        => null,
-            'is_active'       => true,
+            'examples' => null,
+            'is_active' => true,
         ];
+    }
+
+    /**
+     * Attach the given credential to the tool via the pivot table.
+     * Can be called multiple times to attach multiple credentials.
+     */
+    public function forCredential(N8nCredential $credential): self
+    {
+        return $this->afterCreating(function (N8nTool $tool) use ($credential): void {
+            $tool->credentials()->syncWithoutDetaching([$credential->id]);
+        });
     }
 
     public function withGet(): self
@@ -53,15 +63,9 @@ final class N8nToolFactory extends Factory
         return $this->state(['category' => $category]);
     }
 
-    public function forCredential(N8nCredential $credential): self
-    {
-        return $this->state(['credential_id' => $credential->id]);
-    }
-
     public function open(): self
     {
-        // For tests that need a tool without specific credential restriction
-        // NOTE: credential_id is still required (NOT NULL), but any valid key works
-        return $this->state([]);
+        // Tool with no credentials attached — any authenticated caller can use it
+        return $this;
     }
 }

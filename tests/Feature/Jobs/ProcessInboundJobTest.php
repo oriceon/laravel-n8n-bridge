@@ -16,8 +16,8 @@ use Oriceon\N8nBridge\Models\N8nWorkflow;
 covers(ProcessN8nInboundJob::class);
 
 // Inline handler definitions for testing
-beforeAll(function() {
-    if ( ! class_exists('Tests\Jobs\SuccessHandler')) {
+beforeAll(function () {
+    if (! class_exists('Tests\Jobs\SuccessHandler')) {
         eval('
             namespace Tests\Jobs;
             use Oriceon\N8nBridge\DTOs\N8nPayload;
@@ -28,7 +28,7 @@ beforeAll(function() {
         ');
     }
 
-    if ( ! class_exists('Tests\Jobs\ThrowingHandler')) {
+    if (! class_exists('Tests\Jobs\ThrowingHandler')) {
         eval('
             namespace Tests\Jobs;
             use Oriceon\N8nBridge\DTOs\N8nPayload;
@@ -41,7 +41,7 @@ beforeAll(function() {
         ');
     }
 
-    if ( ! class_exists('Tests\Jobs\ValidationHandler')) {
+    if (! class_exists('Tests\Jobs\ValidationHandler')) {
         eval('
             namespace Tests\Jobs;
             use Oriceon\N8nBridge\DTOs\N8nPayload;
@@ -54,29 +54,30 @@ beforeAll(function() {
     }
 });
 
-beforeEach(function() {
-    $this->workflow   = N8nWorkflow::factory()->create();
+beforeEach(function () {
+    $this->workflow = N8nWorkflow::factory()->create();
     $this->credential = N8nCredential::create(['name' => 'Test', 'is_active' => true]);
 
-    $this->endpoint = N8nEndpoint::factory()->create([
-        'handler_class' => 'Tests\Jobs\SuccessHandler',
-        'credential_id' => $this->credential->id,
-        'max_attempts'  => 3,
-    ]);
+    $this->endpoint = N8nEndpoint::factory()
+        ->forCredential($this->credential)
+        ->create([
+            'handler_class' => 'Tests\Jobs\SuccessHandler',
+            'max_attempts' => 3,
+        ]);
 
     $this->delivery = N8nDelivery::factory()->create([
         'workflow_id' => $this->workflow->id,
         'endpoint_id' => $this->endpoint->id,
-        'status'      => DeliveryStatus::Received->value,
-        'payload'     => ['invoice_id' => 42],
+        'status' => DeliveryStatus::Received->value,
+        'payload' => ['invoice_id' => 42],
     ]);
 });
 
 // ── Successful handle ─────────────────────────────────────────────────────────
 
-describe('ProcessN8nInboundJob successful handling', function() {
+describe('ProcessN8nInboundJob successful handling', function () {
 
-    it('marks delivery as Done on success', function() {
+    it('marks delivery as Done on success', function () {
         Event::fake([N8nPayloadProcessedEvent::class]);
 
         dispatch_sync(new ProcessN8nInboundJob($this->delivery->id, $this->endpoint->id));
@@ -85,7 +86,7 @@ describe('ProcessN8nInboundJob successful handling', function() {
         Event::assertDispatched(N8nPayloadProcessedEvent::class);
     });
 
-    it('records duration_ms after processing', function() {
+    it('records duration_ms after processing', function () {
         dispatch_sync(new ProcessN8nInboundJob($this->delivery->id, $this->endpoint->id));
 
         expect($this->delivery->fresh()->duration_ms)->toBeInt()->toBeGreaterThanOrEqual(0);
@@ -94,17 +95,16 @@ describe('ProcessN8nInboundJob successful handling', function() {
 
 // ── Handler exception ─────────────────────────────────────────────────────────
 
-describe('ProcessN8nInboundJob exception handling', function() {
+describe('ProcessN8nInboundJob exception handling', function () {
 
-    it('marks delivery as Failed when handler throws', function() {
+    it('marks delivery as Failed when handler throws', function () {
         Event::fake([N8nPayloadFailedEvent::class, N8nDeliveryDeadEvent::class]);
 
         $this->endpoint->update(['handler_class' => 'Tests\Jobs\ThrowingHandler']);
 
         try {
             dispatch_sync(new ProcessN8nInboundJob($this->delivery->id, $this->endpoint->id));
-        }
-        catch (Throwable) {
+        } catch (Throwable) {
         }
 
         $status = $this->delivery->fresh()->status;
@@ -114,9 +114,9 @@ describe('ProcessN8nInboundJob exception handling', function() {
 
 // ── Validation failure ────────────────────────────────────────────────────────
 
-describe('ProcessN8nInboundJob validation failure', function() {
+describe('ProcessN8nInboundJob validation failure', function () {
 
-    it('sends delivery straight to DLQ on validation failure', function() {
+    it('sends delivery straight to DLQ on validation failure', function () {
         Event::fake([N8nDeliveryDeadEvent::class]);
 
         $this->endpoint->update(['handler_class' => 'Tests\Jobs\ValidationHandler']);
@@ -132,10 +132,10 @@ describe('ProcessN8nInboundJob validation failure', function() {
 
 // ── backoff() ─────────────────────────────────────────────────────────────────
 
-describe('ProcessN8nInboundJob::backoff()', function() {
+describe('ProcessN8nInboundJob::backoff()', function () {
 
-    it('returns an array of 3 delay values', function() {
-        $job     = new ProcessN8nInboundJob($this->delivery->id, $this->endpoint->id);
+    it('returns an array of 3 delay values', function () {
+        $job = new ProcessN8nInboundJob($this->delivery->id, $this->endpoint->id);
         $backoff = $job->backoff();
 
         expect($backoff)->toHaveCount(3)
@@ -144,8 +144,8 @@ describe('ProcessN8nInboundJob::backoff()', function() {
             ->and($backoff[2])->toBeInt();
     });
 
-    it('returns fallback delays when endpoint not found', function() {
-        $job     = new ProcessN8nInboundJob($this->delivery->id, 99999);
+    it('returns fallback delays when endpoint not found', function () {
+        $job = new ProcessN8nInboundJob($this->delivery->id, 99999);
         $backoff = $job->backoff();
 
         expect($backoff)->toBe([10, 30, 60]);
@@ -154,8 +154,8 @@ describe('ProcessN8nInboundJob::backoff()', function() {
 
 // ── failed() callback ─────────────────────────────────────────────────────────
 
-describe('ProcessN8nInboundJob::failed()', function() {
-    it('moves delivery to DLQ if not already there', function() {
+describe('ProcessN8nInboundJob::failed()', function () {
+    it('moves delivery to DLQ if not already there', function () {
         Event::fake([N8nDeliveryDeadEvent::class]);
 
         $job = new ProcessN8nInboundJob($this->delivery->id, $this->endpoint->id);
@@ -165,7 +165,7 @@ describe('ProcessN8nInboundJob::failed()', function() {
         Event::assertDispatched(N8nDeliveryDeadEvent::class);
     });
 
-    it('does not re-dispatch event if already in DLQ', function() {
+    it('does not re-dispatch event if already in DLQ', function () {
         Event::fake([N8nDeliveryDeadEvent::class]);
 
         $this->delivery->update(['status' => DeliveryStatus::Dlq->value]);

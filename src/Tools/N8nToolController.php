@@ -40,8 +40,7 @@ final class N8nToolController extends Controller
 {
     public function __construct(
         private readonly CredentialAuthService $auth,
-    ) {
-    }
+    ) {}
 
     // ── Schema endpoint ───────────────────────────────────────────────────────
 
@@ -52,35 +51,35 @@ final class N8nToolController extends Controller
      */
     public function schema(Request $request): JsonResponse
     {
-        $tools      = N8nTool::query()->active()->orderBy('category')->orderBy('name')->get();
+        $tools = N8nTool::query()->active()->orderBy('category')->orderBy('name')->get();
         $toolPrefix = config('n8n-bridge.tools.route_prefix', 'n8n/tools');
 
         $schema = [
             'openapi' => '3.0.3',
-            'info'    => [
-                'title'   => config('app.name') . ' — n8n Tools',
+            'info' => [
+                'title' => config('app.name').' — n8n Tools',
                 'version' => '1.0.0',
             ],
             'paths' => [],
         ];
 
         foreach ($tools as $tool) {
-            $basePath = '/' . $toolPrefix . '/' . $tool->name;
-            $methods  = $tool->allowed_methods ?? ['POST'];
-            $ops      = [];
+            $basePath = '/'.$toolPrefix.'/'.$tool->name;
+            $methods = $tool->allowed_methods ?? ['POST'];
+            $ops = [];
 
             foreach ($methods as $method) {
-                $method       = strtolower($method);
+                $method = strtolower($method);
                 $ops[$method] = [
-                    'summary'     => $tool->label,
+                    'summary' => $tool->label,
                     'description' => $tool->description ?? '',
-                    'operationId' => $tool->name . '_' . $method,
-                    'tags'        => [$tool->category ?? 'general'],
-                    'security'    => [['WebhookKey' => []]],
-                    'responses'   => [
+                    'operationId' => $tool->name.'_'.$method,
+                    'tags' => [$tool->category ?? 'general'],
+                    'security' => [['WebhookKey' => []]],
+                    'responses' => [
                         '200' => [
                             'description' => 'Success',
-                            'content'     => [
+                            'content' => [
                                 'application/json' => [
                                     'schema' => $tool->response_schema ?? ['type' => 'object'],
                                 ],
@@ -95,7 +94,7 @@ final class N8nToolController extends Controller
                 if (in_array(strtoupper($method), ['POST', 'PUT', 'PATCH'], true)) {
                     $ops[$method]['requestBody'] = [
                         'required' => true,
-                        'content'  => [
+                        'content' => [
                             'application/json' => [
                                 'schema' => $tool->request_schema ?? ['type' => 'object'],
                             ],
@@ -117,21 +116,21 @@ final class N8nToolController extends Controller
             // Add /{id} path if tool supports ID-based operations
             $idMethods = array_intersect($methods, ['GET', 'PUT', 'PATCH', 'DELETE']);
 
-            if ( ! empty($idMethods)) {
+            if (! empty($idMethods)) {
                 $idOps = [];
 
                 foreach ($idMethods as $method) {
-                    $method         = strtolower($method);
+                    $method = strtolower($method);
                     $idOps[$method] = [
-                        'summary'     => $tool->label . ' (by ID)',
-                        'operationId' => $tool->name . '_' . $method . '_by_id',
-                        'tags'        => [$tool->category ?? 'general'],
-                        'security'    => [['WebhookKey' => []]],
-                        'parameters'  => [[
-                            'name'     => 'id',
-                            'in'       => 'path',
+                        'summary' => $tool->label.' (by ID)',
+                        'operationId' => $tool->name.'_'.$method.'_by_id',
+                        'tags' => [$tool->category ?? 'general'],
+                        'security' => [['WebhookKey' => []]],
+                        'parameters' => [[
+                            'name' => 'id',
+                            'in' => 'path',
                             'required' => true,
-                            'schema'   => ['type' => 'string'],
+                            'schema' => ['type' => 'string'],
                         ]],
                         'responses' => [
                             '200' => ['description' => 'Success'],
@@ -142,13 +141,13 @@ final class N8nToolController extends Controller
                     if (in_array(strtoupper($method), ['PUT', 'PATCH'], true)) {
                         $idOps[$method]['requestBody'] = [
                             'required' => true,
-                            'content'  => ['application/json' => [
+                            'content' => ['application/json' => [
                                 'schema' => $tool->request_schema ?? ['type' => 'object'],
                             ]],
                         ];
                     }
                 }
-                $schema['paths'][$basePath . '/{id}'] = $idOps;
+                $schema['paths'][$basePath.'/{id}'] = $idOps;
             }
         }
 
@@ -156,7 +155,7 @@ final class N8nToolController extends Controller
             'securitySchemes' => [
                 'WebhookKey' => [
                     'type' => 'apiKey',
-                    'in'   => 'header',
+                    'in' => 'header',
                     'name' => 'X-N8N-Key',
                 ],
             ],
@@ -167,143 +166,192 @@ final class N8nToolController extends Controller
 
     // ── Method dispatchers ────────────────────────────────────────────────────
 
-    public function index(Request $request, string $name): JsonResponse
+    /**
+     * GET /n8n/tools/{path}
+     *
+     * Dispatches to handler->get() for collections or handler->getById() for single items.
+     * Path resolution tries the full path as a tool name first; if no tool matches,
+     * the last segment is treated as the resource ID.
+     */
+    public function index(Request $request, string $path): JsonResponse
     {
-        [$tool, $handler, $toolRequest, $error] = $this->boot($request, $name, 'GET');
+        [$tool, $handler, $toolRequest, $id, $error] = $this->boot($request, $path, 'GET');
 
         if ($error) {
             return $error;
         }
 
-        return $this->execute($tool, $handler, fn() => $handler->get($toolRequest), $request);
+        if ($id !== null) {
+            return $this->execute($tool, $handler, fn () => $handler->getById($toolRequest, $id), $request);
+        }
+
+        return $this->execute($tool, $handler, fn () => $handler->get($toolRequest), $request);
     }
 
-    public function show(Request $request, string $name, string|int $id): JsonResponse
+    /** POST /n8n/tools/{path} */
+    public function store(Request $request, string $path): JsonResponse
     {
-        [$tool, $handler, $toolRequest, $error] = $this->boot($request, $name, 'GET');
+        [$tool, $handler, $toolRequest, , $error] = $this->boot($request, $path, 'POST');
 
         if ($error) {
             return $error;
         }
 
-        return $this->execute($tool, $handler, fn() => $handler->getById($toolRequest, $id), $request);
+        return $this->execute($tool, $handler, fn () => $handler->post($toolRequest), $request);
     }
 
-    public function store(Request $request, string $name): JsonResponse
+    /** PUT /n8n/tools/{path} — last path segment is the resource ID */
+    public function replace(Request $request, string $path): JsonResponse
     {
-        [$tool, $handler, $toolRequest, $error] = $this->boot($request, $name, 'POST');
+        [$tool, $handler, $toolRequest, $id, $error] = $this->boot($request, $path, 'PUT');
 
         if ($error) {
             return $error;
         }
 
-        return $this->execute($tool, $handler, fn() => $handler->post($toolRequest), $request);
+        if ($id === null) {
+            return new JsonResponse(['error' => 'Resource ID required in path for PUT.'], 405);
+        }
+
+        return $this->execute($tool, $handler, fn () => $handler->put($toolRequest, $id), $request);
     }
 
-    public function replace(Request $request, string $name, string|int $id): JsonResponse
+    /** PATCH /n8n/tools/{path} — last path segment is the resource ID */
+    public function update(Request $request, string $path): JsonResponse
     {
-        [$tool, $handler, $toolRequest, $error] = $this->boot($request, $name, 'PUT');
+        [$tool, $handler, $toolRequest, $id, $error] = $this->boot($request, $path, 'PATCH');
 
         if ($error) {
             return $error;
         }
 
-        return $this->execute($tool, $handler, fn() => $handler->put($toolRequest, $id), $request);
+        if ($id === null) {
+            return new JsonResponse(['error' => 'Resource ID required in path for PATCH.'], 405);
+        }
+
+        return $this->execute($tool, $handler, fn () => $handler->patch($toolRequest, $id), $request);
     }
 
-    public function update(Request $request, string $name, string|int $id): JsonResponse
+    /** DELETE /n8n/tools/{path} — last path segment is the resource ID */
+    public function destroy(Request $request, string $path): JsonResponse
     {
-        [$tool, $handler, $toolRequest, $error] = $this->boot($request, $name, 'PATCH');
+        [$tool, $handler, $toolRequest, $id, $error] = $this->boot($request, $path, 'DELETE');
 
         if ($error) {
             return $error;
         }
 
-        return $this->execute($tool, $handler, fn() => $handler->patch($toolRequest, $id), $request);
-    }
-
-    public function destroy(Request $request, string $name, string|int $id): JsonResponse
-    {
-        [$tool, $handler, $toolRequest, $error] = $this->boot($request, $name, 'DELETE');
-
-        if ($error) {
-            return $error;
+        if ($id === null) {
+            return new JsonResponse(['error' => 'Resource ID required in path for DELETE.'], 405);
         }
 
-        return $this->execute($tool, $handler, fn() => $handler->delete($toolRequest, $id), $request);
+        return $this->execute($tool, $handler, fn () => $handler->delete($toolRequest, $id), $request);
     }
 
     // ── Boot pipeline ─────────────────────────────────────────────────────────
 
-    private function boot(Request $request, string $name, string $method): array
+    /**
+     * Resolve {path} to a tool name + optional resource ID, then run the auth pipeline.
+     *
+     * Resolution rules:
+     *   - GET / POST: try full path as tool name first (collection); if no tool matches,
+     *     split the last segment off as the resource ID.
+     *   - PUT / PATCH / DELETE: always split the last segment as the resource ID
+     *     (mutations always address a single resource).
+     *
+     * Returns [$tool, $handler, $toolRequest, $id|null, $errorResponse|null].
+     *
+     * @return array{0: N8nTool|null, 1: N8nToolHandler|null, 2: N8nToolRequest|null, 3: string|null, 4: JsonResponse|null}
+     */
+    private function boot(Request $request, string $path, string $method): array
     {
+        [$name, $id] = $this->resolvePath($path, requiresId: in_array($method, ['PUT', 'PATCH', 'DELETE'], true));
+
         // 1. Find tool
         $tool = N8nTool::query()->active()->where('name', $name)->first();
 
         if ($tool === null) {
-            return [null, null, null, new JsonResponse(['error' => 'Tool not found.'], 404)];
+            return [null, null, null, null, new JsonResponse(['error' => 'Tool not found.'], 404)];
         }
 
         // 2. HTTP method allowed
-        if ( ! $tool->allowsMethod($method)) {
-            return [null, null, null, new JsonResponse(['error' => 'Method not allowed for this tool.'], 405)];
+        if (! $tool->allowsMethod($method)) {
+            return [null, null, null, null, new JsonResponse(['error' => 'Method not allowed for this tool.'], 405)];
         }
 
         // 3. Rate limit
         if ($tool->rate_limit > 0) {
-            $key = "n8n-tool:{$name}:" . $request->ip();
+            $key = "n8n-tool:{$name}:".$request->ip();
 
             if (RateLimiter::tooManyAttempts($key, $tool->rate_limit)) {
-                return [null, null, null, new JsonResponse(['error' => 'Too many requests.'], 429)];
+                return [null, null, null, null, new JsonResponse(['error' => 'Too many requests.'], 429)];
             }
 
             RateLimiter::hit($key, 60);
         }
 
-        // 4. Credential auth
-        if ($tool->credential_id !== null) {
-            [$credential, $reason] = $this->auth->authenticate($request);
+        // 4. Credential check — every tool must have at least one credential attached.
+        // If none are attached, deny the request — open-access tools are not allowed.
+        $toolCredentialIds = $tool->credentials()->pluck('id');
+        $credential = $request->attributes->get('n8n_credential');
 
-            if ($credential === null) {
-                $status  = $reason === 'ip_not_allowed' ? 403 : 401;
-                $message = $reason === 'ip_not_allowed' ? 'Forbidden.' : 'Unauthorized.';
-
-                return [null, null, null, new JsonResponse(['error' => $message], $status)];
-            }
-
-            if ($credential->id !== $tool->credential_id) {
-                return [null, null, null, new JsonResponse(['error' => 'Unauthorized.'], 401)];
-            }
+        if ($toolCredentialIds->isEmpty() || ! $toolCredentialIds->contains($credential?->id)) {
+            return [null, null, null, null, new JsonResponse(['error' => 'Unauthorized.'], 401)];
         }
 
         // 5. Per-tool IP whitelist
-        if ( ! empty($tool->allowed_ips) && ! in_array($request->ip(), $tool->allowed_ips, true)) {
-            return [null, null, null, new JsonResponse(['error' => 'Forbidden.'], 403)];
+        if (! empty($tool->allowed_ips) && ! in_array($request->ip(), $tool->allowed_ips, true)) {
+            return [null, null, null, null, new JsonResponse(['error' => 'Forbidden.'], 403)];
         }
 
         // 6. Resolve handler
-        if ( ! class_exists($tool->handler_class)) {
-            return [null, null, null, new JsonResponse(
-                ['error' => 'Handler class not found.'],
-                500
-            )];
+        if (! class_exists($tool->handler_class)) {
+            return [null, null, null, null, new JsonResponse(['error' => 'Handler class not found.'], 500)];
         }
 
-        if ( ! is_subclass_of($tool->handler_class, N8nToolHandler::class)) {
-            return [null, null, null, new JsonResponse(
-                ['error' => 'Invalid handler class.'],
-                500
-            )];
+        if (! is_subclass_of($tool->handler_class, N8nToolHandler::class)) {
+            return [null, null, null, null, new JsonResponse(['error' => 'Invalid handler class.'], 500)];
         }
 
-        $handler     = app($tool->handler_class);
+        $handler = app($tool->handler_class);
         $toolRequest = new N8nToolRequest(
             request: $request,
             toolName: $name,
             callerWorkflowId: $request->header('X-N8N-Workflow-Id'),
         );
 
-        return [$tool, $handler, $toolRequest, null];
+        return [$tool, $handler, $toolRequest, $id, null];
+    }
+
+    /**
+     * Resolve a URL path to [toolName, id|null].
+     *
+     * For GET/POST ($requiresId = false):
+     *   1. Try the full path as a tool name → [$path, null] if a match exists.
+     *   2. Otherwise split the last segment off as the resource ID.
+     *
+     * For PUT/PATCH/DELETE ($requiresId = true):
+     *   Always split the last segment as the resource ID.
+     *   If there is no slash, $id will be null (caller returns 405).
+     *
+     * @return array{0: string, 1: string|null}
+     */
+    private function resolvePath(string $path, bool $requiresId = false): array
+    {
+        if (! $requiresId && N8nTool::query()->active()->where('name', $path)->exists()) {
+            return [$path, null];
+        }
+
+        $lastSlash = strrpos($path, '/');
+
+        if ($lastSlash !== false) {
+            return [
+                substr($path, 0, $lastSlash),
+                substr($path, $lastSlash + 1),
+            ];
+        }
+
+        return [$path, null];
     }
 
     private function execute(
@@ -316,17 +364,16 @@ final class N8nToolController extends Controller
 
         try {
             /** @var N8nToolResponse $response */
-            $response   = $call();
+            $response = $call();
             $durationMs = (int) ((microtime(true) - $startedAt) * 1000);
 
             event(new N8nToolCalledEvent($tool, $request->all(), $response, $durationMs));
 
             return $response->toJsonResponse();
 
-        }
-        catch (\Throwable $e) {
+        } catch (\Throwable $e) {
             $durationMs = (int) ((microtime(true) - $startedAt) * 1000);
-            $response   = N8nToolResponse::error($e->getMessage());
+            $response = N8nToolResponse::error($e->getMessage());
 
             event(new N8nToolCalledEvent($tool, $request->all(), $response, $durationMs));
 

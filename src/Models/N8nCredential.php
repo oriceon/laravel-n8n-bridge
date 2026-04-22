@@ -7,6 +7,7 @@ namespace Oriceon\N8nBridge\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Oriceon\N8nBridge\Concerns\HasDynamicTable;
@@ -85,19 +86,33 @@ class N8nCredential extends Model
     }
 
     /**
-     * Inbound endpoints that use this credential key.
+     * Inbound endpoints associated with this credential.
      */
-    public function inboundEndpoints(): HasMany
+    public function inboundEndpoints(): BelongsToMany
     {
-        return $this->hasMany(N8nEndpoint::class, 'credential_id');
+        $prefix = config('n8n-bridge.table_prefix', 'n8n');
+
+        return $this->belongsToMany(
+            N8nEndpoint::class,
+            "{$prefix}__endpoints__credentials",
+            'credential_id',
+            'endpoint_id'
+        );
     }
 
     /**
-     * Tools that use this credential key.
+     * Tools associated with this credential.
      */
-    public function tools(): HasMany
+    public function tools(): BelongsToMany
     {
-        return $this->hasMany(N8nTool::class, 'credential_id');
+        $prefix = config('n8n-bridge.table_prefix', 'n8n');
+
+        return $this->belongsToMany(
+            N8nTool::class,
+            "{$prefix}__tools__credentials",
+            'credential_id',
+            'tool_id'
+        );
     }
 
     // ── Key management ────────────────────────────────────────────────────────
